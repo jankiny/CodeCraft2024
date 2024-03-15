@@ -1,0 +1,66 @@
+# This starter workflow is for a CMake project running on a single platform. There is a different starter workflow if you need cross-platform coverage.
+# See: https://github.com/actions/starter-workflows/blob/main/ci/cmake-multi-platform.yml
+name: CMake on a single platform
+
+on:
+  push:
+    branches: [ "master" ]
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Configure CMake
+      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+
+    - name: Build
+      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
+
+    - name: Test
+      working-directory: ${{github.workspace}}/build
+      run: ctest -C ${{env.BUILD_TYPE}}
+
+    - name: Download PreliminaryJudge
+      run: |
+        mkdir -p ${{github.workspace}}/judge-linux
+        curl -L https://raw.githubusercontent.com/jankiny/public-bucket/CodeCraft2024/judge-linux/PreliminaryJudge > ${{github.workspace}}/judge-linux/PreliminaryJudge
+        chmod +x ${{github.workspace}}/judge-linux/PreliminaryJudge
+
+    - name: Download Map File
+      run: |
+        mkdir -p ${{github.workspace}}/judge-linux/maps
+        curl -L https://raw.githubusercontent.com/jankiny/public-bucket/CodeCraft2024/judge-linux/maps/map1.txt > ${{github.workspace}}/judge-linux/maps/map1.txt
+
+    - name: Run Preliminary Judge
+      run: ${{github.workspace}}/judge-linux/PreliminaryJudge ${{github.workspace}}/build/CodeCraft2024 -m ${{github.workspace}}/judge-linux/maps/map1.txt
+
+    - name: Archive Replay and Logs
+      run: |
+        tar -czvf replay_and_logs.tar.gz -C ${{github.workspace}} replay log.txt
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.run_number }}
+        release_name: Release-${{ github.run_number }}
+        draft: false
+        prerelease: false
+
+    - name: Upload Replay and Logs Archive
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ${{github.workspace}}/replay_and_logs.tar.gz
+        asset_name: replay_and_logs.tar.gz
+        asset_content_type: application/gzip
