@@ -267,11 +267,11 @@ struct Boat {
 
     void FindSuitableBerth() {
         logInfo << " In FindSuitableBerth Operation " << endl;
-        Berth *tmpBerth;
+        Berth *tmpBerth = nullptr;
         this->berthId = -1;
-        // logInfo << "Berth\t\tHasBoatLock\t\tStackedGoodNum" << endl;
+         logInfo << "Berth\t\tHasBoatLock\t\tStackedGoodNum" << endl;
         for (int i = 0; i < BERTH_NUM; i++) {
-            // logInfo << i << "\t\t" << g_berths[i].hasBoatLocked << "\t\t" << g_berths[i].stackGoodNum << endl;
+             logInfo << i << "\t\t" << g_berths[i].hasBoatLocked << "\t\t" << g_berths[i].stackGoodNum << endl;
             // 若当前泊位未被船只锁定且泊位具有堆积货物, 直接将当前船只锁定该泊位
             if (!g_berths[i].hasBoatLocked && g_berths[i].stackGoodNum > 0) {
                 tmpBerth = &g_berths[i];
@@ -281,7 +281,7 @@ struct Boat {
                 break;
             }
             // 若当前泊位被船只锁定但泊位没有堆积货物, 解锁被船只锁定状态
-            if (g_berths[i].hasBoatLocked && g_berths[i].stackGoodNum == 0) {
+            if (g_berths[i].hasBoatLocked && g_berths[i].stackGoodNum <= 0) {
                 tmpBerth->hasBoatLocked = false;
             }
         }
@@ -943,7 +943,7 @@ void HandleFrame(int frame) {
         // 若当前船只状态为移动中, 什么也不用做
         if (g_boats[i].status == 0) {
             continue;
-        } 
+        }
 
         // 若当前船状态为装货状态或运输完成状态且泊位为虚拟点
         if (g_boats[i].status == 1 && g_boats[i].berthId == -1) {   // 起始状态
@@ -954,7 +954,7 @@ void HandleFrame(int frame) {
                 printf("ship %d %d\n", i, g_boats[i].berthId);
                 g_boats[i].capacity = g_boatCapacity;
             }
-            // logInfo << "ship " << i << " " << g_boats[i].berthId << "\t\t" 
+            // logInfo << "ship " << i << " " << g_boats[i].berthId << "\t\t"
             //         << g_boats[i].capacity << "\t\t" << g_boats[i].berthId << "\t\t"
             //         << g_boats[i].status << endl;
             // logInfo << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$" << endl;
@@ -963,9 +963,34 @@ void HandleFrame(int frame) {
 
         // 若船只位于泊位且处于正常运行状态
         if (g_boats[i].status == 1) {
+            // 泊位还有货
+            if (g_berths[g_boats[i].berthId].stackGoodNum > 0) {
+                // 如果船还有剩余容量, 则继续装, 否则直接开往虚拟点
+                if (g_boats[i].capacity > 0) {
+                    for (int k = 0; k < g_berths[g_boats[i].berthId].loadingSpeed; k ++) {
+                        g_boats[i].capacity --;
+                        g_berths[g_boats[i].berthId].stackGoodNum --;
+                        // 考虑装载时是否会让船只容量装满
+                        if (g_boats[i].capacity == 0) {
+                            g_berths[g_boats[i].berthId].hasBoatLocked = false;
+                            printf("go %d\n", i);
+                            g_boats[i].finishTransportFrame = frame + g_berths[g_boats[i].berthId].transportTime;
+                            break;
+                        }
+                        if (g_berths[g_boats[i].berthId].stackGoodNum == 0) {
+                            g_berths[g_boats[i].berthId].hasBoatLocked = false;
+                            break;
+                        }
+                    }
+                } else {
+                    g_berths[g_boats[i].berthId].hasBoatLocked = false;
+                    printf("go %d\n", i);
+                    g_boats[i].finishTransportFrame = frame + g_berths[g_boats[i].berthId].transportTime;
+                }
+            }
             // 泊位没货了
             if (g_berths[g_boats[i].berthId].stackGoodNum == 0) {
-                // 解锁泊位状态 
+                // 解锁泊位状态
                 g_berths[g_boats[i].berthId].hasBoatLocked = false;
                 // 为船只寻找合适的泊位
                 g_boats[i].FindSuitableBerth();
@@ -980,25 +1005,6 @@ void HandleFrame(int frame) {
                         g_berths[g_boats[i].berthId].hasBoatLocked = false;
                         printf("go %d\n", i);
                     }
-                }
-            // 泊位还有货
-            } else {
-                // 如果船还有剩余容量, 则继续装, 否则直接开往虚拟点
-                if (g_boats[i].capacity > 0) {
-                    for (int k = 0; k < g_berths[g_boats[i].berthId].loadingSpeed; k ++) {
-                        g_boats[i].capacity --;
-                        g_berths[g_boats[i].berthId].stackGoodNum --;
-                        // 考虑装载时是否会让船只容量装满
-                        if (g_boats[i].capacity == 0) {
-                            g_berths[g_boats[i].berthId].hasBoatLocked = false;
-                            printf("go %d\n", i);
-                            g_boats[i].finishTransportFrame = frame + g_berths[g_boats[i].berthId].transportTime;
-                        }
-                    }
-                } else {
-                    g_berths[g_boats[i].berthId].hasBoatLocked = false;
-                    printf("go %d\n", i);
-                    g_boats[i].finishTransportFrame = frame + g_berths[g_boats[i].berthId].transportTime;
                 }
             }
         }
