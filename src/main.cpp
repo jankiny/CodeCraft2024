@@ -994,9 +994,11 @@ void HandleFrame(int frame) {
                             g_berths[g_boats[i].berthId].hasBoatLocked = false;
                             printf("go %d\n", i);
                             g_boats[i].finishTransportFrame = frame + g_berths[g_boats[i].berthId].transportTime;
+                            break;
                         }
                         if (g_berths[g_boats[i].berthId].stackGoodNum == 0) {
                             g_berths[g_boats[i].berthId].hasBoatLocked = false;
+                            break;
                         }
                     }
                 } else {
