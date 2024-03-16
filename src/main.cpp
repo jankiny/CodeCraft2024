@@ -269,9 +269,9 @@ struct Boat {
         logInfo << " In FindSuitableBerth Operation " << endl;
         Berth *tmpBerth = nullptr;
         this->berthId = -1;
-        logInfo << "Berth\t\tHasBoatLock\t\tStackedGoodNum" << endl;
+         logInfo << "Berth\t\tHasBoatLock\t\tStackedGoodNum" << endl;
         for (int i = 0; i < BERTH_NUM; i++) {
-            logInfo << i << "\t\t" << g_berths[i].hasBoatLocked << "\t\t" << g_berths[i].stackGoodNum << endl;
+             logInfo << i << "\t\t" << g_berths[i].hasBoatLocked << "\t\t" << g_berths[i].stackGoodNum << endl;
             // 若当前泊位未被船只锁定且泊位具有堆积货物, 直接将当前船只锁定该泊位
             if (!g_berths[i].hasBoatLocked && g_berths[i].stackGoodNum > 0) {
                 tmpBerth = &g_berths[i];
@@ -281,11 +281,10 @@ struct Boat {
                 break;
             }
             // 若当前泊位被船只锁定但泊位没有堆积货物, 解锁被船只锁定状态
-            if (g_berths[i].hasBoatLocked && g_berths[i].stackGoodNum == 0) {
+            if (g_berths[i].hasBoatLocked && g_berths[i].stackGoodNum <= 0) {
                 tmpBerth->hasBoatLocked = false;
             }
         }
-        logInfo << "FindSuitableBerth Operation Done" << endl;
     }
 } g_boats[BOAT_NUM];
 
@@ -920,16 +919,16 @@ void HandleFrame(int frame) {
     logInfo << " ******* Start to Handle Berth with Boats ******* " << endl;
     // 此处策略：针对每一艘船
     for (int i = 0; i < BOAT_NUM; i++) {    // 船(Boat)
-        // 打印泊位状态
-        logInfo << "Berth\t\tLocation\t\tTransport\t\tLoadingSpeed\t\tStackedGoodNum\t\tLocked" << endl;
-        logInfo << g_berths[i].id << "\t\t(" << g_berths[i].p.x << "," << g_berths[i].p.y << ")\t\t"
-                << g_berths[i].transportTime << "\t\t" << g_berths[i].loadingSpeed << "\t\t"
-                << g_berths[i].stackGoodNum << "\t\t" << g_berths[i].hasBoatLocked << endl;
+        // // 打印泊位状态
+        // logInfo << "Berth\t\tLocation\t\tTransport\t\tLoadingSpeed\t\tStackedGoodNum\t\tLocked" << endl;
+        // logInfo << g_berths[i].id << "\t\t(" << g_berths[i].p.x << "," << g_berths[i].p.y << ")\t\t"
+        //         << g_berths[i].transportTime << "\t\t" << g_berths[i].loadingSpeed << "\t\t"
+        //         << g_berths[i].stackGoodNum << "\t\t" << g_berths[i].hasBoatLocked << endl;
 
-        // 打印船状态
-        logInfo << "Boat\t\tCapacity\t\tBerthID\t\tStatus\t\tFinishFrame" << endl;
-        logInfo << g_boats[i].id << "\t\t" << g_boats[i].capacity << "\t\t" << g_boats[i].berthId << "\t\t"
-                << g_boats[i].status << "\t\t" << g_boats[i].finishTransportFrame << endl;
+        // // 打印船状态
+        // logInfo << "Boat\t\tCapacity\t\tBerthID\t\tStatus\t\tFinishFrame" << endl;
+        // logInfo << g_boats[i].id << "\t\t" << g_boats[i].capacity << "\t\t" << g_boats[i].berthId
+        //         << g_boats[i].status << "\t\t" << g_boats[i].finishTransportFrame << endl;
 
         // 若当前帧数加上泊位运输帧数超过限定帧数, 则直接运送至虚拟点
         if (frame + g_berths[g_boats[i].berthId].transportTime > LIMIT_LOAD_FRAME) {    // 没时间
@@ -944,18 +943,18 @@ void HandleFrame(int frame) {
         // 若当前船只状态为移动中, 什么也不用做
         if (g_boats[i].status == 0) {
             continue;
-        } 
+        }
 
         // 若当前船状态为装货状态或运输完成状态且泊位为虚拟点
         if (g_boats[i].status == 1 && g_boats[i].berthId == -1) {   // 起始状态
             // 为当前船寻找合适的泊位
-            g_boats[i].capacity = g_boatCapacity;
             g_boats[i].FindSuitableBerth();
             // 若目标泊位不是虚拟点, 则将船只移动到泊位, 同时重置剩余容量
             if (g_boats[i].berthId != -1) {
                 printf("ship %d %d\n", i, g_boats[i].berthId);
+                g_boats[i].capacity = g_boatCapacity;
             }
-            // logInfo << "ship " << i << " " << g_boats[i].berthId << "\t\t" 
+            // logInfo << "ship " << i << " " << g_boats[i].berthId << "\t\t"
             //         << g_boats[i].capacity << "\t\t" << g_boats[i].berthId << "\t\t"
             //         << g_boats[i].status << endl;
             // logInfo << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$" << endl;
@@ -964,26 +963,8 @@ void HandleFrame(int frame) {
 
         // 若船只位于泊位且处于正常运行状态
         if (g_boats[i].status == 1) {
-            // 泊位没货了
-            if (g_berths[g_boats[i].berthId].stackGoodNum <= 0) {
-                // 解锁泊位状态 
-                g_berths[g_boats[i].berthId].hasBoatLocked = false;
-                // 为船只寻找合适的泊位
-                g_boats[i].FindSuitableBerth();
-                // 如果找到合适的泊位
-                if (g_boats[i].berthId != -1) {
-                    // 如果到达目标泊位的时间+泊位到虚拟点时间+预留装货时间小于TOTAL_FRAME,则移动船
-                    // 否则直接将船移动到虚拟点
-                    if (frame + 500 + g_berths[g_boats[i].berthId].transportTime + 100 < TOTAL_FRAME) {
-                        g_berths[g_boats[i].berthId].hasBoatLocked = true;
-                        printf("ship %d %d\n", i, g_boats[i].berthId);
-                    } else {
-                        g_berths[g_boats[i].berthId].hasBoatLocked = false;
-                        printf("go %d\n", i);
-                    }
-                }
             // 泊位还有货
-            } else {
+            if (g_berths[g_boats[i].berthId].stackGoodNum > 0) {
                 // 如果船还有剩余容量, 则继续装, 否则直接开往虚拟点
                 if (g_boats[i].capacity > 0) {
                     for (int k = 0; k < g_berths[g_boats[i].berthId].loadingSpeed; k ++) {
@@ -1005,6 +986,25 @@ void HandleFrame(int frame) {
                     g_berths[g_boats[i].berthId].hasBoatLocked = false;
                     printf("go %d\n", i);
                     g_boats[i].finishTransportFrame = frame + g_berths[g_boats[i].berthId].transportTime;
+                }
+            }
+            // 泊位没货了
+            if (g_berths[g_boats[i].berthId].stackGoodNum == 0) {
+                // 解锁泊位状态
+                g_berths[g_boats[i].berthId].hasBoatLocked = false;
+                // 为船只寻找合适的泊位
+                g_boats[i].FindSuitableBerth();
+                // 如果找到合适的泊位
+                if (g_boats[i].berthId != -1) {
+                    // 如果到达目标泊位的时间+泊位到虚拟点时间+预留装货时间小于TOTAL_FRAME,则移动船
+                    // 否则直接将船移动到虚拟点
+                    if (frame + 500 + g_berths[g_boats[i].berthId].transportTime + 100 < TOTAL_FRAME) {
+                        g_berths[g_boats[i].berthId].hasBoatLocked = true;
+                        printf("ship %d %d\n", i, g_boats[i].berthId);
+                    } else {
+                        g_berths[g_boats[i].berthId].hasBoatLocked = false;
+                        printf("go %d\n", i);
+                    }
                 }
             }
         }
@@ -1040,7 +1040,7 @@ void InitPre() {
         q.push((start));
         visited[start.x][start.y] = true;
         Pre[start.x][start.y] = start;
-        logFile << " init pre " << start.x << " " << start.y << endl;
+        logFile << " init pre" << start.x << " " << start.y << endl;
     }
 
     while (!q.empty()) {
@@ -1055,6 +1055,14 @@ void InitPre() {
             }
         }
     }
+
+
+//    for (int i = 0; i < MAP_REAL_SIZE; i++) {
+//        for (int j = 0; j < MAP_REAL_SIZE; j++) {
+//            outFile << setw(4) << Pre[i][j].x << " " <<setw(4)<< Pre[i][j].y <<" | ";
+//        }
+//        outFile << endl;
+//    }
 }
 
 void Init() {
