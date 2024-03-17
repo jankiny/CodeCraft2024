@@ -6,6 +6,7 @@ replay/
 replayer/
 PreliminaryJudge.exe
 log*
+*.zip
 
 # Jetbrain files
 .idea/
