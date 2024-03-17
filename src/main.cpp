@@ -308,7 +308,7 @@ struct Boat {
                     // 移动价值高于等待价值, 则分配新的泊位
                     if (waitValue < moveValue) {
                         maxValue = moveValue > maxValue? moveValue:maxValue;
-                        maxBerthId = it->second.second; 
+                        maxBerthId = it->second.second;
                     } else {
                         maxValue = waitValue > maxValue? waitValue:maxValue;
                         maxBerthId = it->second.second;
@@ -325,7 +325,7 @@ struct Boat {
                             maxBerthId = it->second.second;
                         }
                     }
-                    logInfo << "State 1 maxValue " << maxValue << " maxBerthId " << maxBerthId << endl; 
+                    logInfo << "State 1 maxValue " << maxValue << " maxBerthId " << maxBerthId << endl;
                 }// else {
                     // double moveValue = CalcMoveValueForStateZero(it->second.second, this->berthId, this->capacity);
 
@@ -338,7 +338,7 @@ struct Boat {
         }
 
         if (maxBerthId >= 0) {
-            logInfo << "Status " << this->status << " Change the Target Berth From " << sourceBerthId << " To " << maxBerthId << endl; 
+            logInfo << "Status " << this->status << " Change the Target Berth From " << sourceBerthId << " To " << maxBerthId << endl;
             this->berthId = maxBerthId;
             g_berths[this->berthId].boatQueue.push(this->berthId);
         }
@@ -720,7 +720,7 @@ struct Robot {
                 // logInfo << "===== Before Robot Pull To Berth ===== " << endl;
                 // PrintBerthValueRank();
                 // logInfo << "===== Before Robot Pull To Berth ===== " << endl;
-                // logInfo << "new value " << this->value << " berth " << this->targetBerth->id  
+                // logInfo << "new value " << this->value << " berth " << this->targetBerth->id
                 //             << " value " << this->targetBerth->totalValueBerth << endl;
                 // 更新berth存储的货物价值链表, 并降序排序
                 this->targetBerth->totalValueBerth += this->value;
@@ -1060,8 +1060,12 @@ void HandleFrame(int frame) {
 
         // 打印船状态
         logInfo << "Boat\t\tCapacity\t\tTotalValue\t\tBerthID\t\tStatus" << endl;
-        logInfo << g_boats[i].id << "\t\t" << g_boats[i].capacity << "\t\t" << g_boats[i].totalValueBoat << "\t\t" 
+        logInfo << g_boats[i].id << "\t\t" << g_boats[i].capacity << "\t\t" << g_boats[i].totalValueBoat << "\t\t"
                     << g_boats[i].berthId << "\t\t"<< g_boats[i].status << endl;
+        // // 打印船状态
+        // logInfo << "Boat\t\tCapacity\t\tBerthID\t\tStatus\t\tFinishFrame" << endl;
+        // logInfo << g_boats[i].id << "\t\t" << g_boats[i].capacity << "\t\t" << g_boats[i].berthId
+        //         << g_boats[i].status << "\t\t" << g_boats[i].finishTransportFrame << endl;
 
         // 船只状态: 移动中, 什么也不能做
         // TODO 移动过程中真的不能更改target berth嘛, 如果可以的话, 倒是可以计算到达帧数, 做个权衡
@@ -1111,7 +1115,7 @@ void HandleFrame(int frame) {
                     // 针对当前船只的装载速度, 装货
                         for (int k = 0; k < g_berths[g_boats[i].berthId].loadingSpeed; k ++) {
                             // 获取泊位价值最大的货物
-                            // logFile << 1 << " good size " << g_berths[g_boats[i].berthId].storedGoods.size()  
+                            // logFile << 1 << " good size " << g_berths[g_boats[i].berthId].storedGoods.size()
                             //             << " total value "<< g_berths[g_boats[i].berthId].totalValueBerth << endl;
                             auto tmpGood =  g_berths[g_boats[i].berthId].storedGoods.at(0);
                             // 船只货物价值更新
@@ -1170,6 +1174,8 @@ void HandleFrame(int frame) {
                 }
             }
         }
+
+        logInfo << "$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$" << endl;
     }
 
     logFile << " ******* Berth with Boats Handled OK ******* " << endl;
@@ -1179,6 +1185,11 @@ void HandleFrame(int frame) {
     LOST_FRAME--;
     logFile << " ==== Lost Frame " << LOST_FRAME << " Count Value " << COUNT_VALUE << " ====" << endl;
 
+    //    for (GoodNode *curr = g_goodList.head->next; curr != g_goodList.head; curr = curr->next) {
+//        if (!curr->good.hasRobotLocked) {
+//            --curr->good.restFrame;       // 货物剩余时间-1
+//        }
+//    }
     return;
 }
 
@@ -1341,7 +1352,7 @@ int main() {
         }
 
         scanf("%s", g_ok);
- 
+
         logFile << " -------- start HandleFrame -------- " << endl;
         HandleFrame(frame);
         logFile << " -------- HandleFrame done -------- " << endl;
@@ -1349,6 +1360,7 @@ int main() {
         logFile << " ### WONDERFUL FRAME ### " << endl;
         fflush(stdout);
     }
+
 
     logFile.close();
     logInfo.close();
