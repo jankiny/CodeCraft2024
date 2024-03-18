@@ -36,13 +36,57 @@ jobs:
       run: |
         mkdir -p ${{github.workspace}}/judge-linux/maps
         curl -L https://raw.githubusercontent.com/jankiny/public-bucket/CodeCraft2024/judge-linux/maps/map1.txt > ${{github.workspace}}/judge-linux/maps/map1.txt
+        curl -L https://raw.githubusercontent.com/jankiny/public-bucket/CodeCraft2024/judge-linux/maps/map2.txt > ${{github.workspace}}/judge-linux/maps/map2.txt
+        curl -L https://raw.githubusercontent.com/jankiny/public-bucket/CodeCraft2024/judge-linux/maps/map3.txt > ${{github.workspace}}/judge-linux/maps/map3.txt
+        curl -L https://raw.githubusercontent.com/jankiny/public-bucket/CodeCraft2024/judge-linux/maps/map4.txt > ${{github.workspace}}/judge-linux/maps/map4.txt
+        curl -L https://raw.githubusercontent.com/jankiny/public-bucket/CodeCraft2024/judge-linux/maps/map5.txt > ${{github.workspace}}/judge-linux/maps/map5.txt
+        curl -L https://raw.githubusercontent.com/jankiny/public-bucket/CodeCraft2024/judge-linux/maps/map6.txt > ${{github.workspace}}/judge-linux/maps/map6.txt
+        curl -L https://raw.githubusercontent.com/jankiny/public-bucket/CodeCraft2024/judge-linux/maps/map7.txt > ${{github.workspace}}/judge-linux/maps/map7.txt
+        curl -L https://raw.githubusercontent.com/jankiny/public-bucket/CodeCraft2024/judge-linux/maps/map8.txt > ${{github.workspace}}/judge-linux/maps/map8.txt
 
-    - name: Run Preliminary Judge
-      run: ${{github.workspace}}/judge-linux/PreliminaryJudge ${{github.workspace}}/build/CodeCraft2024 -m ${{github.workspace}}/judge-linux/maps/map1.txt
+    - name: Run Preliminary Judge - map1
+      run: |
+        ${{github.workspace}}/judge-linux/PreliminaryJudge ${{github.workspace}}/build/CodeCraft2024 -m ${{github.workspace}}/judge-linux/maps/map1.txt
+        mv ${{github.workspace}}/log.txt ${{github.workspace}}/log_map1.txt 
+        
+    - name: Run Preliminary Judge - map2
+      run: |
+        ${{github.workspace}}/judge-linux/PreliminaryJudge ${{github.workspace}}/build/CodeCraft2024 -m ${{github.workspace}}/judge-linux/maps/map2.txt
+        mv ${{github.workspace}}/log.txt ${{github.workspace}}/log_map2.txt 
+        
+    - name: Run Preliminary Judge - map3
+      run: |
+        ${{github.workspace}}/judge-linux/PreliminaryJudge ${{github.workspace}}/build/CodeCraft2024 -m ${{github.workspace}}/judge-linux/maps/map3.txt
+        mv ${{github.workspace}}/log.txt ${{github.workspace}}/log_map3.txt 
+        
+    - name: Run Preliminary Judge - map4
+      run: |
+        ${{github.workspace}}/judge-linux/PreliminaryJudge ${{github.workspace}}/build/CodeCraft2024 -m ${{github.workspace}}/judge-linux/maps/map4.txt
+        mv ${{github.workspace}}/log.txt ${{github.workspace}}/log_map4.txt 
+        
+    - name: Run Preliminary Judge - map5
+      run: |
+        ${{github.workspace}}/judge-linux/PreliminaryJudge ${{github.workspace}}/build/CodeCraft2024 -m ${{github.workspace}}/judge-linux/maps/map5.txt
+        mv ${{github.workspace}}/log.txt ${{github.workspace}}/log_map5.txt 
+        
+    - name: Run Preliminary Judge - map6
+      run: |
+        ${{github.workspace}}/judge-linux/PreliminaryJudge ${{github.workspace}}/build/CodeCraft2024 -m ${{github.workspace}}/judge-linux/maps/map6.txt
+        mv ${{github.workspace}}/log.txt ${{github.workspace}}/log_map6.txt 
+        
+    - name: Run Preliminary Judge - map7
+      run: |
+        ${{github.workspace}}/judge-linux/PreliminaryJudge ${{github.workspace}}/build/CodeCraft2024 -m ${{github.workspace}}/judge-linux/maps/map7.txt
+        mv ${{github.workspace}}/log.txt ${{github.workspace}}/log_map7.txt 
+        
+    - name: Run Preliminary Judge - map8
+      run: |
+        ${{github.workspace}}/judge-linux/PreliminaryJudge ${{github.workspace}}/build/CodeCraft2024 -m ${{github.workspace}}/judge-linux/maps/map8.txt
+        mv ${{github.workspace}}/log.txt ${{github.workspace}}/log_map8.txt 
 
     - name: Archive Replay and Logs
       run: |
-        tar -czvf replay_and_logs.tar.gz -C ${{github.workspace}} replay log.txt
+        tar -czvf replay_and_logs.tar.gz -C ${{github.workspace}} replay $(find . -maxdepth 1 -name "*.txt")
 
     - name: Create Release
       id: create_release
