@@ -21,7 +21,8 @@ using namespace std;
 // ----------------------------- 日志 -----------------------------
 ofstream logFile("log.txt", ios::trunc);            // 日志文件
 ofstream logInfo("log_info.txt", ios::trunc);       // 调试
-ofstream logBoat("log_boat.txt", ios::trunc);       // 调试
+//ofstream logBoat("log_boat.txt", ios::trunc);       // 调试
+//ofstream logGood("log_good.txt", ios::trunc);       // 调试
 
 // ----------------------------- 常量 -----------------------------
 const double  EPS                         =   1e-7;                               // 浮点数精度
@@ -38,6 +39,7 @@ const int     TOP_K_SELECTED_BERTH_NUM    =   2;                                
 const int     MAX_PATH_STEP               =   4 * MAP_REAL_SIZE + MAP_REAL_SIZE;  // 最大的路程距离(绕地图一圈) + 倒退预留大小
 const int     MAX_RESET_PATH_STEP         =   10;                                 // 最大纠正步数
 const double  PREDICT_FRAME               =   15;                                 // 预测的帧数
+const int     STEP                        =   15;                                 // 抢夺货物预留步数
 
 // 方向
 const int DIRECTION[4] = {
@@ -193,6 +195,10 @@ struct Path {
         return dis;
     }
 
+    int getRestStep() {
+        return pathRear - pathHead;
+    }
+
     // 添加路径点
     void addPoint(const Point &p) {
         if (pathRear < MAX_PATH_STEP) {
@@ -242,6 +248,8 @@ unordered_map<long long, Path>      hash_paths;         // 两点最短路径的
 unordered_map<Point, Path>          back_paths;         // 两点最短路径的Cache
 typedef pair<int, int> lock_index;
 multimap<int, lock_index>  berth_value_rank; // 动态统计, 当前泊位价值总量<unalloc_value, total_value, index>
+int berth_ship_count[BERTH_NUM];                        // 每个港口船只数量
+int target_position[MAP_ARRAY_SIZE][MAP_ARRAY_SIZE];   //目标点机器人id
 
 struct Berth {
     int id;
@@ -297,6 +305,8 @@ struct Boat {
 
         for (auto it = berth_value_rank.rbegin(); it != berth_value_rank.rend(); ++it) {
 
+            if(berth_ship_count[it->second.second] >= 1)continue;
+
             if (g_berths[it->second.second].storedGoods.size() < 0) {
                 logInfo << "Error Avaliable Berth " << it->second.second << " Goods Value Negative " << endl;
             } else {
@@ -319,10 +329,12 @@ struct Boat {
                     // TODO 综合考虑泊位的TransportTime + LeftValueBerth + Number of WaitedBoat + LoadingSpeed
 
                     // wang
-                    if (g_berths[it->second.second].leftValueBerth >= 500) {
+                    if (g_berths[it->second.second].leftValueBerth >= 200) {
                         // double choiceValue = g_berths[it->second.second].leftValueBerth * 1.0 / g_berths[it->second.second].transportTime
                         //                     * g_berths[it->second.second].loadingSpeed / (g_berths[it->second.second].boatQueue.size() + 1);
-                        double choiceValue = g_berths[it->second.second].leftValueBerth * g_berths[it->second.second].loadingSpeed;
+                        //double choiceValue = g_berths[it->second.second].leftValueBerth * g_berths[it->second.second].loadingSpeed;
+
+                        double choiceValue = g_berths[it->second.second].leftValueBerth;
                         if (choiceValue > maxValue) {
                             maxValue = choiceValue;
                             maxBerthId = it->second.second;
@@ -343,7 +355,10 @@ struct Boat {
 
         if (maxBerthId >= 0) {
             logInfo << "Status " << this->status << " Change the Target Berth From " << sourceBerthId << " To " << maxBerthId << endl;
+
+            berth_ship_count[this->berthId]--;
             this->berthId = maxBerthId;
+            berth_ship_count[this->berthId]++;
 
             //wang
             g_berths[this->berthId].boatQueue.push(this->berthId);
@@ -418,7 +433,7 @@ struct Good {
     int value;                  // 货物金额(<= 1000)
     int restFrame;              // 剩余停留时间。 开始为1000帧。
     int startFrame;             // 出现时间
-    bool hasRobotLocked;        // 是否已有机器人前往
+    bool hasDelete;             // 是否被运送
     bool canShip;               // 是否可以运送
 
     Berth *targetBerth;         // 目标泊位
@@ -434,7 +449,7 @@ struct Good {
 
         FixPos(this->p);  // 得到的位置是从0开始的，+1与地图保持一致
         restFrame = 1000;
-        hasRobotLocked = false;
+        hasDelete = false;
         canShip = true;
         this->startFrame = startFrame;
     }
@@ -561,6 +576,7 @@ struct GoodList {   // 货物清单
 private:
     int length;
 } g_goodList;
+vector<Robot>   g_robots(ROBOT_NUM);
 
 struct Robot {
     int id;
@@ -629,26 +645,48 @@ struct Robot {
         this->pull = false;
         if (status == 0) return;
         // 当前处在“正常状态且正在送货”, 当前点处在泊位，货物已送出：重置机器人状态为“正常状态但没有分配任务”
-        if (this->targetBerth != nullptr && this->goods == 0 && InBerth(this->targetBerth->p ,this->p)) {
-            this->resetStatus();
-        }
+//        if (this->targetBerth != nullptr && this->goods == 0 && InBerth(this->targetBerth->p, this->p)) {
+//            this->resetStatus();
+//        }
+//
+//        // 错误状态   取货超时
+//        if (this->targetBerth != nullptr && this->goods == 0 && this->p != this->targetBerth->pullP) {
+//            this->resetStatus();
+//
+//            if (target_position[this->p.x][this->p.y] != -1) {
+//                target_position[this->p.x][this->p.y] = -1;
+//            }
+//        }
 
-        // 错误状态   取货超时
-        if (this->targetBerth != nullptr && this->goods == 0 && this->p != this->targetBerth->pullP) {
+        if (this->targetBerth != nullptr && this->goods == 0) {
+
+            if(this->targetGood != nullptr){
+                target_position[this->targetGood->p.x][this->targetGood->p.y] = -1;
+            }
             this->resetStatus();
         }
 
         // “正常状态且正在前往取货”, 当前点处在货物位置，并取到货物：重置机器人状态为“正常状态且正在送货”
+
+        //logGet << " Status1 " << target_position[this->p.x][this->p.y] << endl;
         if (this->targetGood != nullptr && this->goods == 1 && this->p == this->targetGood->p) {
+
+
+
+            if (target_position[this->p.x][this->p.y] != -1) {
+                target_position[this->p.x][this->p.y] = -1;
+            }
+
             this->targetBerth = this->targetGood->targetBerth;
             this->path->resetHead();
-
-            //getPath(p);
             this->path = this->targetGood->pathToTargetBerth;
 
 
             this->path->resetHead();
+
+            this->targetGood->hasDelete = true;
             this->targetGood = nullptr;
+
         }
     }
 
@@ -773,9 +811,6 @@ struct Robot {
 
     void FindSuitableGood(int frame) {
         if (targetGood != nullptr) return;
-
-        //vector<Point> goodsPoint(g_goodList.getLength());     // 选择n个可运输的目标货物
-        // TODO: 通过两点直线距离作为预估距离，选择top-n个最近的货物
         int i = 0;
 
         int goodsPoint[MAP_ARRAY_SIZE][MAP_ARRAY_SIZE];
@@ -783,7 +818,7 @@ struct Robot {
 
 
         for (GoodNode *curr = g_goodList.head->next; curr != g_goodList.head; curr = curr->next) {
-            if (!curr->good.hasRobotLocked && curr->good.canShip) {
+            if (curr->good.canShip && curr->good.startFrame + STOP_FRAME > frame) {
                 goodsPoint[curr->good.p.x][curr->good.p.y] = -1;
             }
         }
@@ -795,28 +830,49 @@ struct Robot {
         double vpdToTargetBerth = 0.0;   // Value per dis
         Good *tmp = nullptr;
         for (GoodNode *curr = g_goodList.head->next; curr != g_goodList.head; curr = curr->next) {
-            if (!curr->good.hasRobotLocked) {
 
-                auto pathToGood = FindPath(this->p, curr->good.p);
-                if (pathToGood == nullptr) continue;    // 货物不可达
-                int dis = pathToGood->getDis();
-                double valuePerDis = curr->good.value * 1.0 / (curr->good.pathToTargetBerth->getDis() + dis);
-                if (targetGood == nullptr ||
-                    (valuePerDis > vpdToTargetBerth && frame + dis < curr->good.startFrame + STOP_FRAME)) {
-                    // logInfo << "good (" << curr->good.p.x << "," << curr->good.p.y << "," << curr->good.value << ")" << endl;
-                    vpdToTargetBerth = valuePerDis;
-                    this->targetGood = &curr->good;
-                    this->value = curr->good.value;
-                    //this->targetGood->hasRobotLocked = true; // 锁定货物
-                    tmp = this->targetGood;
-                    this->path = pathToGood;
-                    this->value = this->targetGood->value;  // 记录货物的价值
+
+
+            if(curr->good.hasDelete)continue;
+
+            auto pathToGood = FindPath(this->p, curr->good.p);
+//            logGood << " --Good " << curr->good.p.x <<" "<<curr->good.p.y <<" " << frame <<" "<<curr->good.startFrame<<" "<<(pathToGood ==
+//                    nullptr)<<" "<< endl;
+            if (pathToGood == nullptr) continue;    // 货物不可达
+            int dis = pathToGood->getDis();
+            double valuePerDis = curr->good.value * 1.0 / (curr->good.pathToTargetBerth->getDis() + dis);
+
+//            logGood << " ----Good " << curr->good.p.x <<" "<<curr->good.p.y <<" "<<valuePerDis<<" "<<vpdToTargetBerth <<" "<<frame + dis<<" "<<curr->good.startFrame + STOP_FRAME<< endl;
+            if (valuePerDis > vpdToTargetBerth && frame + dis < (curr->good.startFrame + STOP_FRAME)) {
+
+
+//                logGood << " ------Good More" << curr->good.p.x << " " << curr->good.p.y <<" "<< curr->good.startFrame << " " << frame + dis<< endl;
+                if (target_position[curr->good.p.x][curr->good.p.y] != -1) {
+                    if (dis > g_robots[target_position[curr->good.p.x][curr->good.p.y]].path->getRestStep() - STEP) {
+                        continue;
+                    }
                 }
+
+//                logGood << "--------good (" << curr->good.p.x << "," << curr->good.p.y << "," << curr->good.value << ")"
+//                       << endl;
+                vpdToTargetBerth = valuePerDis;
+                this->targetGood = &curr->good;
+                this->value = curr->good.value;
+                tmp = this->targetGood;
+                this->path = pathToGood;
             }
+
         }
 
-        if (tmp != nullptr)
-            tmp->hasRobotLocked = true;
+        // 跟新货物
+        if (tmp != nullptr) {
+            //抢夺货物时
+            if (target_position[tmp->p.x][tmp->p.y] != -1) {
+                g_robots[target_position[tmp->p.x][tmp->p.y]].path->resetHead();
+                g_robots[target_position[tmp->p.x][tmp->p.y]].resetStatus();
+            }
+            target_position[tmp->p.x][tmp->p.y] = this->id;
+        }
 
 
         //outFile << "----------------" << (this->targetGood != nullptr) << " " << vpdToTargetBerth << endl;
@@ -836,7 +892,7 @@ private:
     }
 };
 
-vector<Robot>   g_robots(ROBOT_NUM);
+
 
 // ---------------------------- 函数 ----------------------------
 
@@ -897,9 +953,12 @@ void CalcPath(Point start, int (&endPoints)[MAP_ARRAY_SIZE][MAP_ARRAY_SIZE]) {
 
         //loginfo << "--- CalcPath ---" << cur.x << " " << cur.y << endl;
         if (endPoints[cur.x][cur.y] == -1) {
+
+
             Point endPoint(cur.x, cur.y);
 
             long long hashKey = HashTwoPoints(start, endPoint);
+            //logGood << " Good " << cur.x <<" "<<cur.y << " " << hashKey << endl;
             //loginfo << "--- CalcPath end---" << cur.x << " " << cur.y <<" "<<(hash_paths.find(hashKey) == hash_paths.end())<< endl;
             if (hash_paths.find(hashKey) == hash_paths.end()) { // 如果路径未被记录
                 Path path;
@@ -914,11 +973,10 @@ void CalcPath(Point start, int (&endPoints)[MAP_ARRAY_SIZE][MAP_ARRAY_SIZE]) {
                 hash_paths[hashKey] = path;
 
             }
-            continue;
         }
 
         // 遍历四个方向
-        for (int i = 3; i >= 0; i --) {
+        for (int i = 3; i >= 0; i--) {
             Point next(cur.x + DIRECTION_TO_GO[i][0], cur.y + DIRECTION_TO_GO[i][1]);
             if (IsValid(next.x, next.y) && !visited[next.x][next.y]) {
                 visited[next.x][next.y] = true;
@@ -1006,6 +1064,10 @@ void HandleFrame(int frame) {
         // }
         // logInfo << endl;
 
+        logFile << " Robot: " << i << " " << g_robots[i].goods << " " << (g_robots[i].getTargetGood() != nullptr) << " " << (g_robots[i].getTargetBerth() != nullptr) << endl;
+
+        //logGood << " Robot: " << i << " " << g_robots[i].goods << " " << (g_robots[i].getTargetGood() != nullptr) << " " << (g_robots[i].getTargetBerth() != nullptr) << endl;
+
         // 对机器人的四个状态进行处理
         if (g_robots[i].status == 0) continue;  // 恢复状态
         if (g_robots[i].goods == 0 && g_robots[i].getTargetGood() == nullptr &&
@@ -1072,8 +1134,8 @@ void HandleFrame(int frame) {
         logInfo << g_boats[i].id << "\t\t" << g_boats[i].capacity << "\t\t" << g_boats[i].totalValueBoat << "\t\t"
                     << g_boats[i].berthId << "\t\t"<< g_boats[i].status << endl;
 
-        logBoat << g_boats[i].id << "\t\t" << g_boats[i].capacity << "\t\t" << g_boats[i].totalValueBoat << "\t\t"
-                << g_boats[i].berthId << "\t\t"<< g_boats[i].status << endl;
+//        logBoat << g_boats[i].id << "\t\t" << g_boats[i].capacity << "\t\t" << g_boats[i].totalValueBoat << "\t\t"
+//                << g_boats[i].berthId << "\t\t"<< g_boats[i].status << endl;
         // // 打印船状态
         // logInfo << "Boat\t\tCapacity\t\tBerthID\t\tStatus\t\tFinishFrame" << endl;
         // logInfo << g_boats[i].id << "\t\t" << g_boats[i].capacity << "\t\t" << g_boats[i].berthId
@@ -1088,6 +1150,9 @@ void HandleFrame(int frame) {
         // 船只状态: 泊位外等待状态
         if (g_boats[i].status == 2) {
             g_boats[i].FindSuitableBerth();
+
+            //logBoat << " error " << endl;
+
             printf("ship %d %d\n", i, g_boats[i].berthId);
         }
 
@@ -1096,6 +1161,8 @@ void HandleFrame(int frame) {
 
             // 船只位于虚拟点
             if (g_boats[i].berthId == -1) {
+
+
                 // 为船只寻找合适泊位
                 g_boats[i].FindSuitableBerth();
                 // 若有合适的泊位
@@ -1175,6 +1242,13 @@ void HandleFrame(int frame) {
                     } else { // 泊位没货了
                         // 为船只寻找合适的泊位
 
+//                        if(g_boats[i].capacity < 5){
+//                            g_berths[g_boats[i].berthId].boatQueue.pop();
+//                            berth_ship_count[g_boats[i].berthId]--;
+//                            printf("go %d\n", i);
+//                            continue;
+//                        }
+
                         g_boats[i].FindSuitableBerth();
                         // 如果找到合适的泊位
                         if (g_boats[i].berthId != -1) {
@@ -1182,7 +1256,9 @@ void HandleFrame(int frame) {
                             if (frame + 500 + g_berths[g_boats[i].berthId].transportTime < LIMIT_LOAD_FRAME) {
                                 printf("ship %d %d\n", i, g_boats[i].berthId);
                             } else { // 否则直接将船移动到虚拟点
+                                //continue;
                                 g_berths[g_boats[i].berthId].boatQueue.pop();
+                                berth_ship_count[i]--;
                                 printf("go %d\n", i);
                             }
                         }
@@ -1190,6 +1266,7 @@ void HandleFrame(int frame) {
                 } else {
                     // 船只没容量了直接开往虚拟点
                     g_berths[g_boats[i].berthId].boatQueue.pop();
+                    berth_ship_count[g_boats[i].berthId]--;
                     printf("go %d\n", i);
                     // g_boats[i].finishTransportFrame = frame + g_berths[g_boats[i].berthId].transportTime;
                 }
@@ -1201,12 +1278,18 @@ void HandleFrame(int frame) {
 
     logFile << " ******* Berth with Boats Handled OK ******* " << endl;
 
-    PrintBerthValueRank();
+    //logBoat << " berth_ship: ";
+//    for(int i = 0;i < 10;i++){
+//        logBoat << i <<": " << berth_ship_count[i] << " | ";
+//    }
+    //logBoat << endl;
+
+    //PrintBerthValueRank();
 
     LOST_FRAME--;
     logFile << " ==== Lost Frame " << LOST_FRAME << " Count Value " << COUNT_VALUE << " ====" << endl;
 
-    logBoat << " ==== Lost Frame " << LOST_FRAME << " Count Value " << COUNT_VALUE << " ====" << endl;
+    //logBoat << " ==== Lost Frame " << LOST_FRAME << " Count Value " << COUNT_VALUE << " ====" << endl;
 
     //    for (GoodNode *curr = g_goodList.head->next; curr != g_goodList.head; curr = curr->next) {
 //        if (!curr->good.hasRobotLocked) {
@@ -1256,13 +1339,13 @@ void InitPre() {
 //    }
 }
 
-void PrintBerthValueRank() {
-    logInfo << "Left\t\tTotal\t\tIndex -----> Berth Value Rank" << endl;
-    for (auto it = berth_value_rank.begin(); it != berth_value_rank.end(); ++it) {
-        logBoat << it->first << "\t\t" << it->second.first << "\t\t" << it->second.second << endl;
-    }
-    logInfo << "**********************************" << endl;
-}
+//void PrintBerthValueRank() {
+//    logInfo << "Left\t\tTotal\t\tIndex -----> Berth Value Rank" << endl;
+//    for (auto it = berth_value_rank.begin(); it != berth_value_rank.end(); ++it) {
+//        logBoat << it->first << "\t\t" << it->second.first << "\t\t" << it->second.second << endl;
+//    }
+//    logInfo << "**********************************" << endl;
+//}
 
 void Init() {
 
@@ -1276,6 +1359,8 @@ void Init() {
     logFile << "---------------- init berth -------------" << endl;
     logFile << "id\t\tx\t\ty\t\ttime\t\tvelocity\t\tstoredGoods" << endl;
     memset(berthsPullPoint, -2, sizeof(berthsPullPoint));
+    memset(berth_ship_count,0,sizeof(berth_ship_count));
+    memset(target_position, -1, sizeof(target_position));
     for (int i = 0; i < BERTH_NUM; i++) {
         int id;
         scanf("%d", &id);
@@ -1336,7 +1421,8 @@ int main() {
 
         logFile << " --------- frame " << g_frameId << " money " << g_money << " --------- " << endl;
         logInfo << " --------- frame " << g_frameId << " money " << g_money << " --------- " << endl;
-        logBoat << " --------- frame " << g_frameId << " money " << g_money << " --------- " << endl;
+        //logBoat << " --------- frame " << g_frameId << " money " << g_money << " --------- " << endl;
+        //logGood << " --------- frame " << g_frameId << " money " << g_money << " --------- " << endl;
 
         int num;
         scanf("%d", &num);
