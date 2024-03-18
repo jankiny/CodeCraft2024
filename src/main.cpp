@@ -21,6 +21,7 @@ using namespace std;
 // ----------------------------- 日志 -----------------------------
 ofstream logFile("log.txt", ios::trunc);            // 日志文件
 ofstream logInfo("log_info.txt", ios::trunc);       // 调试
+ofstream logBoat("log_boat.txt", ios::trunc);       // 调试
 
 // ----------------------------- 常量 -----------------------------
 const double  EPS                         =   1e-7;                               // 浮点数精度
@@ -316,6 +317,8 @@ struct Boat {
                 } else if (this->status == 1) {
                     // 处于正常状态, 直接分配剩余价值最大的泊位
                     // TODO 综合考虑泊位的TransportTime + LeftValueBerth + Number of WaitedBoat + LoadingSpeed
+
+                    // wang
                     if (g_berths[it->second.second].leftValueBerth >= 500) {
                         // double choiceValue = g_berths[it->second.second].leftValueBerth * 1.0 / g_berths[it->second.second].transportTime
                         //                     * g_berths[it->second.second].loadingSpeed / (g_berths[it->second.second].boatQueue.size() + 1);
@@ -325,6 +328,7 @@ struct Boat {
                             maxBerthId = it->second.second;
                         }
                     }
+
                     logInfo << "State 1 maxValue " << maxValue << " maxBerthId " << maxBerthId << endl;
                 }// else {
                     // double moveValue = CalcMoveValueForStateZero(it->second.second, this->berthId, this->capacity);
@@ -340,6 +344,8 @@ struct Boat {
         if (maxBerthId >= 0) {
             logInfo << "Status " << this->status << " Change the Target Berth From " << sourceBerthId << " To " << maxBerthId << endl;
             this->berthId = maxBerthId;
+
+            //wang
             g_berths[this->berthId].boatQueue.push(this->berthId);
         }
 
@@ -733,9 +739,12 @@ struct Robot {
                         // logInfo << "ggggggggggggggggggggggggggggggggggg" << endl;
                         lock_index berthStatus(this->targetBerth->totalValueBerth, this->targetBerth->id);
                         // logInfo << "locked " << berthStatus.first << " berth " << berthStatus.second << endl;
+
+                        berth_value_rank.erase(it);  // Wang
+
                         berth_value_rank.insert(make_pair(this->targetBerth->leftValueBerth, berthStatus));
                         // PrintBerthValueRank();
-                        berth_value_rank.erase(it);
+
                         // PrintBerthValueRank();
                         break;
                     }
@@ -1062,6 +1071,9 @@ void HandleFrame(int frame) {
         logInfo << "Boat\t\tCapacity\t\tTotalValue\t\tBerthID\t\tStatus" << endl;
         logInfo << g_boats[i].id << "\t\t" << g_boats[i].capacity << "\t\t" << g_boats[i].totalValueBoat << "\t\t"
                     << g_boats[i].berthId << "\t\t"<< g_boats[i].status << endl;
+
+        logBoat << g_boats[i].id << "\t\t" << g_boats[i].capacity << "\t\t" << g_boats[i].totalValueBoat << "\t\t"
+                << g_boats[i].berthId << "\t\t"<< g_boats[i].status << endl;
         // // 打印船状态
         // logInfo << "Boat\t\tCapacity\t\tBerthID\t\tStatus\t\tFinishFrame" << endl;
         // logInfo << g_boats[i].id << "\t\t" << g_boats[i].capacity << "\t\t" << g_boats[i].berthId
@@ -1111,6 +1123,7 @@ void HandleFrame(int frame) {
                 // 船只还有capacity
                 if (g_boats[i].capacity > 0) {
                     // 泊位还有货
+
                     if (g_berths[g_boats[i].berthId].storedGoods.size() > 0) {
                     // 针对当前船只的装载速度, 装货
                         for (int k = 0; k < g_berths[g_boats[i].berthId].loadingSpeed; k ++) {
@@ -1121,7 +1134,7 @@ void HandleFrame(int frame) {
                             // 船只货物价值更新
                             g_boats[i].totalValueBoat += tmpGood;
                             // 泊位货物价值更新
-                            g_berths[g_boats[i].berthId].totalValueBerth -= tmpGood;
+                            //g_berths[g_boats[i].berthId].totalValueBerth -= tmpGood;
                             g_berths[g_boats[i].berthId].leftValueBerth -= tmpGood;
                             // 去除泊位持有的该货物
                             g_berths[g_boats[i].berthId].storedGoods.erase(g_berths[g_boats[i].berthId].storedGoods.begin());
@@ -1140,20 +1153,28 @@ void HandleFrame(int frame) {
                             g_boats[i].capacity --;
                             // 如果船只容量为0, 直接去虚拟点
                             if (g_boats[i].capacity == 0) {
+
+                                break;
                                 g_berths[g_boats[i].berthId].boatQueue.pop();
                                 printf("go %d\n", i);
                                 // 设置到达虚拟点帧数
                                 // g_boats[i].finishTransportFrame = frame + g_berths[g_boats[i].berthId].transportTime;
-                                break;
+
                             }
                             if (g_berths[g_boats[i].berthId].storedGoods.size() == 0) {
+
+                                break;
                                 g_boats[i].FindSuitableBerth();
-                                printf("ship %d %d\n", i, g_boats[i].berthId);
+                                //printf("ship %d %d\n", i, g_boats[i].berthId);
+
+                                //printf("go %d\n", i);
+
                                 break;
                             }
                         }
                     } else { // 泊位没货了
                         // 为船只寻找合适的泊位
+
                         g_boats[i].FindSuitableBerth();
                         // 如果找到合适的泊位
                         if (g_boats[i].berthId != -1) {
@@ -1184,6 +1205,8 @@ void HandleFrame(int frame) {
 
     LOST_FRAME--;
     logFile << " ==== Lost Frame " << LOST_FRAME << " Count Value " << COUNT_VALUE << " ====" << endl;
+
+    logBoat << " ==== Lost Frame " << LOST_FRAME << " Count Value " << COUNT_VALUE << " ====" << endl;
 
     //    for (GoodNode *curr = g_goodList.head->next; curr != g_goodList.head; curr = curr->next) {
 //        if (!curr->good.hasRobotLocked) {
@@ -1236,7 +1259,7 @@ void InitPre() {
 void PrintBerthValueRank() {
     logInfo << "Left\t\tTotal\t\tIndex -----> Berth Value Rank" << endl;
     for (auto it = berth_value_rank.begin(); it != berth_value_rank.end(); ++it) {
-        logInfo << it->first << "\t\t" << it->second.first << "\t\t" << it->second.second << endl;
+        logBoat << it->first << "\t\t" << it->second.first << "\t\t" << it->second.second << endl;
     }
     logInfo << "**********************************" << endl;
 }
@@ -1313,6 +1336,7 @@ int main() {
 
         logFile << " --------- frame " << g_frameId << " money " << g_money << " --------- " << endl;
         logInfo << " --------- frame " << g_frameId << " money " << g_money << " --------- " << endl;
+        logBoat << " --------- frame " << g_frameId << " money " << g_money << " --------- " << endl;
 
         int num;
         scanf("%d", &num);
