@@ -40,7 +40,6 @@ const int     MAX_PATH_STEP               =   4 * MAP_REAL_SIZE + MAP_REAL_SIZE;
 const int     MAX_RESET_PATH_STEP         =   10;                                 // 最大纠正步数
 const double  PREDICT_FRAME               =   15;                                 // 预测的帧数
 const int     STEP                        =   15;                                 // 抢夺货物预留步数
-const int     PUNISH                      =   2;                                  // 惩罚因子
 
 // 方向
 const int DIRECTION[4] = {
@@ -251,7 +250,6 @@ typedef pair<int, int> lock_index;
 multimap<int, lock_index>  berth_value_rank; // 动态统计, 当前泊位价值总量<unalloc_value, total_value, index>
 int berth_ship_count[BERTH_NUM];                        // 每个港口船只数量
 int target_position[MAP_ARRAY_SIZE][MAP_ARRAY_SIZE];   //目标点机器人id
-int nearest_berth[MAP_ARRAY_SIZE][MAP_ARRAY_SIZE];     //距离最近的港口
 
 struct Berth {
     int id;
@@ -853,7 +851,8 @@ struct Robot {
         // 计算 货物价值 / (机器人到货物的距离 + 货物到泊位的距离)，按顺序检查是否可以在货物消失前搬运
 
         CalcPath(this->p, goodsPoint);
-
+        Good *tempTargetGood;
+        Path *tempPathToGood;
         double vpdToTargetBerth = 0.0;   // Value per dis
         Good *tmp = nullptr;
         for (GoodNode *curr = g_goodList.head->next; curr != g_goodList.head; curr = curr->next) {
@@ -867,15 +866,7 @@ struct Robot {
 //                    nullptr)<<" "<< endl;
             if (pathToGood == nullptr) continue;    // 货物不可达
             int dis = pathToGood->getDis();
-            int k = 1;
-            if(this->id == nearest_berth[curr->good.p.x][curr->good.p.y]){
-                k = PUNISH;
-            }
-            double valuePerDis = curr->good.value * k  * 1.0 / (curr->good.pathToTargetBerth->getDis() + dis);
-
-
-            // * (1 - (curr->good.startFrame + STOP_FRAME - frame) / STOP_FRAME)
-            //exp(gamma * (frame - curr->good.startFrame - STOP_FRAME))
+            double valuePerDis = curr->good.value * 1.0 / (curr->good.pathToTargetBerth->getDis() + dis);
 
 //            logGood << " ----Good " << curr->good.p.x <<" "<<curr->good.p.y <<" "<<valuePerDis<<" "<<vpdToTargetBerth <<" "<<frame + dis<<" "<<curr->good.startFrame + STOP_FRAME<< endl;
             if (valuePerDis > vpdToTargetBerth && frame + dis < (curr->good.startFrame + STOP_FRAME)) {
@@ -1371,7 +1362,6 @@ void InitPre() {
         visited[start.x][start.y] = true;
         Pre[start.x][start.y] = start;
         // logFile << " init pre" << start.x << " " << start.y << endl;
-        nearest_berth[start.x][start.y] = i;
     }
 
     while (!q.empty()) {
@@ -1382,7 +1372,6 @@ void InitPre() {
             if (IsValid(next.x, next.y) && !(visited[next.x][next.y])) {
                 visited[next.x][next.y] = true;
                 Pre[next.x][next.y] = cur; // 记录到达next的前驱节点是cur
-                nearest_berth[next.x][next.y] = nearest_berth[cur.x][cur.y];
                 q.push(next);
             }
         }
@@ -1419,7 +1408,6 @@ void Init() {
     memset(berthsPullPoint, -2, sizeof(berthsPullPoint));
     memset(berth_ship_count,0,sizeof(berth_ship_count));
     memset(target_position, -1, sizeof(target_position));
-    memset(nearest_berth,-1,sizeof(nearest_berth));
     for (int i = 0; i < BERTH_NUM; i++) {
         int id;
         scanf("%d", &id);
